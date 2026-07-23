@@ -1,0 +1,298 @@
+openapi: 3.0.3
+info:
+  title: My Union Canteen API
+  description: Smart QR-Based Digital Canteen Coupon Management System
+  version: 1.0.0
+servers:
+  - url: /api/v1
+tags:
+  - name: Auth
+  - name: Worker
+  - name: Scan
+  - name: Feedback
+  - name: Dashboard
+  - name: Admin
+paths:
+  /auth/worker/login:
+    post:
+      tags: [Auth]
+      summary: Worker login with clock number + password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [clockNumber, password]
+              properties:
+                clockNumber: { type: string, example: W10234 }
+                password: { type: string, format: password }
+      responses:
+        '200':
+          description: Login success
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthResponse' }
+        '401': { description: Invalid credentials }
+
+  /auth/worker/otp/request:
+    post:
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [clockNumber]
+              properties:
+                clockNumber: { type: string }
+      responses:
+        '200': { description: OTP sent }
+
+  /auth/worker/otp/verify:
+    post:
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [clockNumber, otp]
+              properties:
+                clockNumber: { type: string }
+                otp: { type: string }
+      responses:
+        '200':
+          description: OTP verified
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthResponse' }
+
+  /auth/admin/login:
+    post:
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, format: password }
+      responses:
+        '200':
+          description: Login success
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthResponse' }
+
+  /me:
+    get:
+      tags: [Worker]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Worker profile
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Worker' }
+
+  /me/coupons/today:
+    get:
+      tags: [Worker]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Today's coupon availability
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TodayCoupons' }
+
+  /me/transactions:
+    get:
+      tags: [Worker]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: from
+          schema: { type: string, format: date }
+        - in: query
+          name: to
+          schema: { type: string, format: date }
+        - in: query
+          name: type
+          schema: { type: string, enum: [BREAKFAST_TEA, MEAL, TEA] }
+      responses:
+        '200':
+          description: Transaction history
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Transaction' }
+
+  /scan/redeem:
+    post:
+      tags: [Scan]
+      security: [{ bearerAuth: [] }]
+      summary: Redeem a coupon after scanning the canteen QR code
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [qrCodeValue, couponType, deviceId]
+              properties:
+                qrCodeValue: { type: string }
+                couponType: { type: string, enum: [BREAKFAST_TEA, MEAL, TEA] }
+                deviceId: { type: string }
+      responses:
+        '200':
+          description: Redemption result
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RedeemResponse' }
+        '409': { description: Already used today }
+        '422': { description: Outside shift window / balance exhausted }
+
+  /feedback:
+    post:
+      tags: [Feedback]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FeedbackInput' }
+      responses:
+        '201': { description: Feedback recorded }
+
+  /dashboard/scans/today:
+    get:
+      tags: [Dashboard]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: shift
+          schema: { type: string }
+        - in: query
+          name: department
+          schema: { type: string }
+      responses:
+        '200':
+          description: Today's scan feed snapshot
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Transaction' }
+
+  /admin/workers:
+    get:
+      tags: [Admin]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: List workers }
+    post:
+      tags: [Admin]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '201': { description: Worker created }
+
+  /admin/coupons/regenerate:
+    post:
+      tags: [Admin]
+      security: [{ bearerAuth: [] }]
+      summary: Manually trigger the monthly coupon allocation job (idempotent)
+      responses:
+        '200': { description: Allocation run summary }
+
+  /admin/reports/utilization:
+    get:
+      tags: [Admin]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: format
+          schema: { type: string, enum: [json, excel, pdf], default: json }
+      responses:
+        '200': { description: Coupon utilization report }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    AuthResponse:
+      type: object
+      properties:
+        accessToken: { type: string }
+        refreshToken: { type: string }
+        worker: { $ref: '#/components/schemas/Worker' }
+    Worker:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        clockNumber: { type: string }
+        fullName: { type: string }
+        department: { type: string }
+        shift: { type: string, enum: [1ST, 2ND, 3RD] }
+        photoUrl: { type: string, nullable: true }
+        languagePref: { type: string, enum: [en, mr] }
+    TodayCoupons:
+      type: object
+      properties:
+        businessDate: { type: string, format: date }
+        shift: { type: string }
+        coupons:
+          type: array
+          items:
+            type: object
+            properties:
+              type: { type: string, enum: [BREAKFAST_TEA, MEAL, TEA] }
+              window: { type: string }
+              isOpenNow: { type: boolean }
+              remaining: { type: integer }
+              usedToday: { type: boolean }
+    Transaction:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        workerName: { type: string }
+        clockNumber: { type: string }
+        department: { type: string }
+        shift: { type: string }
+        couponType: { type: string }
+        businessDate: { type: string, format: date }
+        scannedAt: { type: string, format: date-time }
+        status: { type: string, enum: [SUCCESS, REJECTED] }
+    RedeemResponse:
+      type: object
+      properties:
+        transactionId: { type: string, format: uuid }
+        status: { type: string, enum: [SUCCESS, REJECTED] }
+        couponType: { type: string }
+        scannedAt: { type: string, format: date-time }
+        remainingAfter: { type: integer }
+        reason: { type: string, nullable: true }
+        message: { type: string, nullable: true }
+    FeedbackInput:
+      type: object
+      required: [transactionId, rating]
+      properties:
+        transactionId: { type: string, format: uuid }
+        rating: { type: integer, minimum: 1, maximum: 5 }
+        comment: { type: string }
+        categories:
+          type: array
+          items:
+            type: string
+            enum: [FOOD_QUALITY, TEA_QUALITY, BREAKFAST_QUALITY, CLEANLINESS, STAFF_BEHAVIOUR, WAITING_TIME, SUGGESTIONS]
+        photoUrl: { type: string, nullable: true }

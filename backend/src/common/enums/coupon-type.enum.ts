@@ -1,0 +1,25 @@
+export enum CouponType {
+  BREAKFAST_TEA = 'BREAKFAST_TEA',
+  MEAL = 'MEAL',
+  TEA = 'TEA',
+}
+
+export enum TransactionStatus {
+  SUCCESS = 'SUCCESS',
+  REJECTED = 'REJECTED',
+}
+
+export enum RejectReason {
+  ALREADY_USED_TODAY = 'ALREADY_USED_TODAY',
+  OUTSIDE_SHIFT_WINDOW = 'OUTSIDE_SHIFT_WINDOW',
+  BALANCE_EXHAUSTED = 'BALANCE_EXHAUSTED',
+  INVALID_QR_CODE = 'INVALID_QR_CODE',
+  WORKER_INACTIVE = 'WORKER_INACTIVE',
+  HOLIDAY = 'HOLIDAY',
+}
+
+export enum ShiftCode {
+  FIRST = '1ST',
+  SECOND = '2ND',
+  THIRD = '3RD',
+}

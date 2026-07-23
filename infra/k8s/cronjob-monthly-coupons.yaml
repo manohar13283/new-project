@@ -1,0 +1,33 @@
+# Redundant external trigger: the backend also self-schedules this via
+# @nestjs/schedule (see backend/src/coupons/coupons.service.ts). This
+# CronJob is a resilience net in case the backend process misses its
+# in-process cron tick during a rolling deploy.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: monthly-coupon-regeneration
+  namespace: canteen
+spec:
+  schedule: "10 0 1 * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: regenerate-coupons
+              image: curlimages/curl:8.9.1
+              env:
+                - name: ADMIN_API_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: canteen-secrets
+                      key: ADMIN_API_TOKEN
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  curl -sf -X POST http://backend/api/v1/admin/coupons/regenerate \
+                    -H "Authorization: Bearer $ADMIN_API_TOKEN" \
+                    -H "Content-Type: application/json" \
+                    -d "{\"year\": $(date +%Y), \"month\": $(date +%-m)}"
