@@ -74,7 +74,7 @@ kubectl exec -it deploy/backend -n canteen -- npm run migration:run
 ## 5. Scaling Guidance
 
 - **Backend**: stateless, scales horizontally. The row-level `SELECT ... FOR UPDATE` lock on `monthly_coupon_allocation` keeps coupon-debit correctness under multiple replicas — no in-memory state to worry about.
-- **Socket.IO**: use the Redis adapter (`@socket.io/redis-adapter`, already wired in `backend/src/dashboard/dashboard.gateway.ts`) so scan events fan out correctly across backend replicas.
+- **Socket.IO**: wire up the Redis adapter (`@socket.io/redis-adapter`, already a backend dependency but not yet attached to the gateway's server in `backend/src/dashboard/dashboard.gateway.ts`/`main.ts`) before running multiple backend replicas, so scan events fan out to dashboard clients connected to a different pod.
 - **Database**: PgBouncer in front of PostgreSQL recommended above ~500 backend connections; add read replicas for reporting queries if the analytics load grows.
 - **Peak load**: shift-change windows (e.g., 08:30–09:30) are the traffic spikes — HPA is tuned to scale backend pods on CPU and on a custom `scan_requests_per_second` metric.
 
